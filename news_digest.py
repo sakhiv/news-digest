@@ -4,10 +4,8 @@ from datetime import datetime, timezone, timedelta
 import feedparser
 import requests
 
-SCRIPT_DIR      = os.path.dirname(os.path.abspath(__file__))
-RECIPIENT_EMAIL = "sakhi@scrabbleinc.in"
-SENDER_EMAIL    = "hiring@scrabbleinc.in"
-RESEND_API_KEY  = os.environ["RESEND_API_KEY"]
+SCRIPT_DIR       = os.path.dirname(os.path.abspath(__file__))
+SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwk_tmev8Kuz7n09l-hgOYnoc4Idndmk-6n_RMt-aUMVQKRx1I3qLEN5nNNmlUQPCPzHw/exec"
 
 RSS_FEEDS = [
     "https://inc42.com/feed/",
@@ -67,7 +65,7 @@ def fetch_articles(hours=24):
                     'summary': re.sub('<[^>]+>', '', entry.get('summary', '')),
                     'link':    link,
                     'source':  feed.feed.get('title', url),
-                    'pub':     pub.strftime('%d %b %Y %H:%M UTC') if pub else 'Unknown date'
+                    'pub':     pub.strftime('%d %b %Y') if pub else datetime.now().strftime('%d %b %Y')
                 })
         except Exception as e:
             print(f"  [WARN] {url}: {e}")
@@ -82,33 +80,27 @@ def build_hits(articles, entity_list):
             hits.append({**article, 'matches': list(set(matches))})
     return hits
 
-def format_body(hits, label):
-    date_str = datetime.now().strftime('%d %b %Y')
+def post_to_sheet(hits, label):
     if not hits:
-        return f"Daily {label} Digest — {date_str}\n\nNo relevant news found today.\n"
-    lines = [
-        f"Daily {label} Digest — {date_str}",
-        f"{len(hits)} article(s) matched across {len(RSS_FEEDS)} sources.",
-        "=" * 60, ""
-    ]
+        print(f"  No matches for {label}, nothing to post.")
+        return
+    rows = []
     for h in hits:
-        lines += [
-            f"  {h['title']}",
-            f"  Source  : {h['source']}",
-            f"  Date    : {h['pub']}",
-            f"  Matched : {', '.join(h['matches'])}",
-            f"  Link    : {h['link']}",
-            ""
-        ]
-    return "\n".join(lines)
-
-def send_email(subject, body):
+        rows.append({
+            'date':    h['pub'],
+            'type':    label,
+            'title':   h['title'],
+            'matched': ', '.join(h['matches']),
+            'source':  h['source'],
+            'link':    h['link']
+        })
     r = requests.post(
-        "https://api.resend.com/emails",
-        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
-        json={"from": SENDER_EMAIL, "to": [RECIPIENT_EMAIL], "subject": subject, "text": body}
+        SHEET_SCRIPT_URL,
+        headers={'Content-Type': 'text/plain'},
+        data=json.dumps({'rows': rows}),
+        allow_redirects=True
     )
-    print(f"  {'Sent' if r.status_code in (200,201) else 'ERROR'} → {subject} ({r.status_code})")
+    print(f"  Sheet post [{label}]: {r.status_code} — {len(rows)} rows added")
 
 def main():
     print(f"News Digest — {datetime.now().strftime('%d %b %Y %H:%M UTC')}")
@@ -120,12 +112,14 @@ def main():
     print(f"Fetched {len(articles)} articles")
 
     company_hits = build_hits(articles, companies)
-    send_email(f"[Companies] News Digest {datetime.now().strftime('%d %b %Y')} — {len(company_hits)} match(es)",
-               format_body(company_hits, "Companies"))
+    print(f"Company matches: {len(company_hits)}")
+    post_to_sheet(company_hits, "Company")
 
     investor_hits = build_hits(articles, investors)
-    send_email(f"[Investors] News Digest {datetime.now().strftime('%d %b %Y')} — {len(investor_hits)} match(es)",
-               format_body(investor_hits, "Investors"))
+    print(f"Investor matches: {len(investor_hits)}")
+    post_to_sheet(investor_hits, "Investor")
+
+    print("Done.")
 
 if __name__ == "__main__":
     main()
