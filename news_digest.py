@@ -6,7 +6,7 @@ import requests
 
 SCRIPT_DIR      = os.path.dirname(os.path.abspath(__file__))
 RECIPIENT_EMAIL = "sakhi@scrabbleinc.in"
-SENDER_EMAIL    = "onboarding@resend.dev"
+SENDER_EMAIL    = "hiring@scrabbleinc.in"
 RESEND_API_KEY  = os.environ["RESEND_API_KEY"]
 
 RSS_FEEDS = [
