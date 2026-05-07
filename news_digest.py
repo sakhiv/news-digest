@@ -73,11 +73,21 @@ def fetch_articles(hours=24):
     return articles
 
 def build_hits(articles, entity_list):
-    hits = []
+    raw_hits = []
     for article in articles:
         matches = find_matches(article['title'] + ' ' + article['summary'], entity_list)
         if matches:
-            hits.append({**article, 'matches': list(set(matches))})
+            raw_hits.append({**article, 'matches': matches})
+
+    # One row per entity per day — first source wins
+    seen = {}  # (entity, date) -> already added
+    hits = []
+    for h in raw_hits:
+        for entity in h['matches']:
+            key = (entity.lower(), h['pub'])
+            if key not in seen:
+                seen[key] = True
+                hits.append({**h, 'matches': [entity]})
     return hits
 
 def post_to_sheet(hits, label, run_date):
