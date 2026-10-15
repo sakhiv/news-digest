@@ -1,0 +1,19 @@
+name: Keep Alive
+on:
+  schedule:
+    - cron: '0 0 1 * *'  # runs on the 1st of every month
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Keep alive commit
+        run: |
+          git config --global user.email "sakhi.vijan@gmail.com"
+          git config --global user.name "Sakhi Vijan"
+          git commit --allow-empty -m "chore: keep alive"
+          git push
